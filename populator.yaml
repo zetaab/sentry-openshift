@@ -1,0 +1,49 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  # Initializes database with Sentry data and creates initial user
+  name: database-populator
+spec:
+  containers:
+    - name: database-populator
+      image: sentry:8.20
+      resources:
+        limits:
+          # for some reason this populator is consuming lots of memory
+          cpu: 500m
+          memory: 1500Mi
+        requests:
+          cpu: 50m
+          memory: 800Mi
+      env:
+        - name: SENTRY_POSTGRES_HOST
+          value: 'db'
+        - name: SENTRY_SECRET_KEY
+          value: my_secret_here_some_random_hash
+        - name: SENTRY_DB_USER
+          value: 'myuser'
+        - name: SENTRY_DB_PASSWORD
+          value: 'mypassword'
+        - name: SENTRY_INITIAL_EMAIL
+          value: 'myuser@company.com'
+        - name: SENTRY_INITIAL_PASSWORD
+          value: 'foobar'
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/sentry/
+      command:
+          - "/bin/bash"
+          - "-ecx"
+          - |
+            # Init migrations
+            sentry upgrade --noinput
+            # Create user to sentry
+            sentry createuser --email ${SENTRY_INITIAL_EMAIL} --password ${SENTRY_INITIAL_PASSWORD} --superuser --no-input
+      imagePullPolicy: Always
+  volumes:
+  - name: config-volume
+    configMap:
+      name: sentry
+  restartPolicy: OnFailure
+  terminationGracePeriodSeconds: 30
+  dnsPolicy: ClusterFirst
